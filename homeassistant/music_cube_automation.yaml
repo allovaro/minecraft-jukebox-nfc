@@ -1,0 +1,136 @@
+# =====================================================================
+#  Музыкальный куб — автоматизация Home Assistant
+#
+#  Перед импортом:
+#   1. Создайте помощник "Текст":  input_text.music_cube_last_disc
+#      (Настройки -> Устройства и службы -> Помощники -> Текст)
+#   2. Положите аудио в папку /media/cube/ (через Samba или File editor).
+#      В HA она видна как media-source://media_source/local/cube/...
+#   3. В настройках интеграции ESPHome для куба включите
+#      "Разрешить устройству выполнять действия Home Assistant" —
+#      иначе метки не попадут в раздел "Метки".
+#   4. Вставьте YAML: Автоматизации -> Создать -> ⋮ -> Редактировать в YAML.
+#
+#  Как добавить новую пластинку:
+#   положите новый диск на куб -> придёт уведомление с UID ->
+#   допишите строчку в "discs" ниже.
+# =====================================================================
+
+alias: "Музыкальный куб — пластинки"
+description: "Диск на кубе -> играет его музыка. Сняли -> пауза. Вернули тот же -> продолжает."
+mode: restart
+
+triggers:
+  - trigger: state
+    entity_id: sensor.music_cube_current_disc
+    not_to:
+      - unavailable
+      - unknown
+
+variables:
+  player: media_player.music_cube_player
+  leds: light.music_cube_led
+
+  # ---------- Привязка пластинок (UID -> что играть) ----------
+  # file:     один файл из /media/cube/
+  # playlist: плейлист Music Assistant (если установлен, см. README)
+  # color:    цвет подсветки [R, G, B] — удобно делать как цвет этикетки пластинки
+  discs:
+    "04-A1-B2-C3-D4-E5-F6":
+      name: "Колыбельная"
+      color: [80, 120, 255]
+      file: "media-source://media_source/local/cube/kolybelnaya.mp3"
+    "04-11-22-33-44-55-66":
+      name: "Колобок"
+      color: [255, 200, 0]
+      file: "media-source://media_source/local/cube/skazki/kolobok.mp3"
+    "04-77-88-99-AA-BB-CC":
+      name: "Песенки из мультиков"
+      color: [0, 220, 90]
+      playlist: "Мультики"
+  # ------------------------------------------------------------
+
+  tag: "{{ trigger.to_state.state }}"
+  disc: "{{ discs[tag] if tag in discs else {} }}"
+  last: "{{ states('input_text.music_cube_last_disc') }}"
+
+actions:
+  - choose:
+      # Диск сняли -> пауза
+      - conditions: "{{ tag == 'none' }}"
+        sequence:
+          - action: media_player.media_pause
+            target:
+              entity_id: "{{ player }}"
+
+      # Вернули тот же диск, а плеер на паузе -> продолжаем с того же места
+      - conditions: "{{ tag == last and is_state(player, 'paused') }}"
+        sequence:
+          - action: media_player.media_play
+            target:
+              entity_id: "{{ player }}"
+
+      # Знакомый диск с файлом
+      - conditions: "{{ disc.file is defined }}"
+        sequence:
+          - action: media_player.play_media
+            target:
+              entity_id: "{{ player }}"
+            data:
+              media_content_id: "{{ disc.file }}"
+              media_content_type: music
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.music_cube_last_disc
+            data:
+              value: "{{ tag }}"
+
+      # Знакомый диск с плейлистом (нужен Music Assistant)
+      - conditions: "{{ disc.playlist is defined }}"
+        sequence:
+          - action: music_assistant.play_media
+            target:
+              entity_id: "{{ player }}"
+            data:
+              media_id: "{{ disc.playlist }}"
+              media_type: playlist
+              enqueue: replace
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.music_cube_last_disc
+            data:
+              value: "{{ tag }}"
+
+    # Незнакомый диск -> подсказка родителю
+    default:
+      - action: persistent_notification.create
+        data:
+          title: "Музыкальный куб: новая пластинка"
+          message: >
+            UID метки: **{{ tag }}**.
+            Добавьте его в автоматизацию «Музыкальный куб — пластинки» в список discs.
+
+  # Подсветка: играет -> «дышит» цветом пластинки, сняли -> гаснет,
+  # незнакомая пластинка -> мигнёт красным
+  - choose:
+      - conditions: "{{ tag == 'none' }}"
+        sequence:
+          - action: light.turn_off
+            target:
+              entity_id: "{{ leds }}"
+      - conditions: "{{ disc.file is defined or disc.playlist is defined }}"
+        sequence:
+          - action: light.turn_on
+            target:
+              entity_id: "{{ leds }}"
+            data:
+              rgb_color: "{{ disc.color | default([255, 140, 40]) }}"
+              brightness_pct: 60
+              effect: Breathe
+    default:
+      - action: light.turn_on
+        target:
+          entity_id: "{{ leds }}"
+        data:
+          rgb_color: [255, 0, 0]
+          flash: short

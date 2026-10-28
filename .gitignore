@@ -1,0 +1,12 @@
+# Личный конфиг со старыми ключами (если вернётся в папку) — не публиковать
+Text Document.txt
+
+# Секреты ESPHome
+secrets.yaml
+esphome/secrets.yaml
+esphome/.esphome/
+
+# Мусор
+*.bak
+Thumbs.db
+.DS_Store
