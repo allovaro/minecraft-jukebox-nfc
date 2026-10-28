@@ -51,15 +51,15 @@ Code comments are in Russian; this README covers everything you need.
 
 | Part | Purpose |
 |---|---|
-| **ESP32-S3 DevKitC-1 N16R8** | Brain + Wi-Fi + audio. PSRAM is needed for the audio buffer |
+| **ESP32-S3 N16R8** dev board (DevKitC-1 or a dual USB-C clone, ~69×28 mm) | Brain + Wi-Fi + audio. PSRAM is needed for the audio buffer |
 | **MAX98357A** I2S amplifier (3 W) | Digital audio straight from the ESP32 |
 | **PN532** NFC board (blue, 78.5×49 mm, 4 mounting holes) | Reads and writes NFC tags |
 | **NTAG215** stickers, Ø25 mm | One per disc |
 | 2 small speakers, 8 Ω (~Ø40 mm) | Front and back, wired in parallel |
 | 10 × **WS2812** LEDs (individual boards) + 330 Ω resistor | Glowing slot |
-| 3 × tactile buttons **6×6 mm, 8–9 mm tall** | Volume up / down, play/pause |
-| USB cable + 5 V 2 A power supply | Power |
-| M3×6 screws ×4, M3×10 countersunk ×4, rubber feet ×4 | PN532 mount, bottom plate |
+| 3 × tactile buttons **6×6 mm, 10 mm tall** | Volume up / down, play/pause (height is the `btn_h` parameter) |
+| USB cable (Ø ≤ 4.5 mm) + 5 V 2 A power supply | Power, plugged straight into the ESP32 |
+| M3×6 screws ×4, M3×10 countersunk ×4, rubber feet ×4, ~5 small zip ties | PN532 mount, bottom plate, strain relief and electronics |
 | Filament: dark (frame, discs), terracotta/orange (panels), natural PETG or white PLA (slot), bright colors (disc labels) | |
 
 **Why not an ESP8266 / D1 mini?** ESPHome's media player only runs on ESP32. ESP8266 boards cannot play audio in ESPHome.
@@ -78,6 +78,7 @@ into your amp. The firmware stays the same.
 | Speakers | MAX98357A + / − | Two 8 Ω speakers **in parallel** (= 4 Ω, fine for the MAX98357A) |
 | Buttons vol+ / vol− / play | GPIO15 / GPIO16 / GPIO17 | Other button pin to GND |
 | WS2812 DIN / 5V / GND | GPIO4 (via 330 Ω) / 5V / GND | Daisy-chain all 10: DOUT → next DIN |
+| Power | ESP32 USB port | The cable runs through a notch at the bottom of the back wall |
 
 Pins can be changed in the `substitutions` block at the top of the YAML.
 Avoid GPIO0, 3, 45, 46 (strapping), 19/20 (USB) and 35–37 (PSRAM on N16R8).
@@ -101,16 +102,26 @@ Or just grab the STLs from `cad/stl/`.
 - The **side panels** sit in 1.6 mm pockets on the frame. The **top panels** have a tongue on the back that fits a groove in the roof.
   All panels stand 2.8 mm proud of the frame (parameter `panel_out`). Glue them on last.
 - Through the checkerboard holes you see the dark wall behind, just like the original block. Behind the speakers the wall is open, so sound comes out through the holes.
-- The **slot unit** is installed **from inside**, while the bottom plate is off. Its rim pokes through the roof and glows; a ledge under the roof holds it, and you glue it along that ledge.
-- The **PN532** mounts on 4 standoffs on the back of the slot unit. Its antenna sits about 4 mm off the disc center, which does not affect reading.
+- The **slot unit** is installed **from inside**, while the bottom plate is off. Its rim pokes through the roof and glows.
+  A ledge under the roof and two legs resting on the bottom plate clamp it in place, so it stays put when a kid pushes a disc in. Glue is optional.
+- The **PN532** mounts on 4 standoffs on the back of the slot unit with M3×6 self-tapping screws. Its antenna sits about 4 mm off the disc center, which does not affect reading.
+  Use a **straight** pin header pointing away from the slot (a right-angle header hits the side wall), and set the I2C switch before mounting.
   Measure your board, especially `nfc_ant` (the distance from the edge without the header to the center of the antenna).
 - The **LEDs** are glued onto the slot walls: 8 in a row on the front wall plus 1 on each end. The light-colored plastic diffuses the light.
-- The **buttons and power cable** are hidden in the back panel pattern: the stem of each 6×6 button peeks through a checkerboard hole.
+- The **buttons** are hidden in the back panel pattern: the stem of each 6×6 button sits flush in a checkerboard hole.
+  Push each button into its holder from inside and back it up with a blob of hot glue, so it can't be pushed in.
+- The **power cable** exits through a small notch at the bottom left of the back wall, which the bottom plate closes.
+  A zip tie through the slots in the bottom plate keeps a kid from yanking the plug out of the ESP32.
+- The **ESP32 and the amplifier** are zip-tied to the bottom plate, so the whole thing comes apart for repairs with four screws.
+  The ESP32 sits at the front with its USB-C port facing left; there are 25 mm left for the plug and the cable bend.
+  Measure your board and set `esp_len` / `esp_wid`. On dual USB-C clones, use the port labeled **COM** for the first flash.
 - The **disc** is Ø84 mm (14×14 "pixels" of 6 mm) and sticks out 13 mm. The tag sits in the center, so the disc works either way round.
 
 **Disc: two slicer stops**
-1. **Pause at Z = 1.6 mm**: drop an NTAG215 sticker into the hidden pocket, then resume.
-2. **Filament change at Z = 3.0 mm**: the ring-shaped label prints in a bright color. Match it to the LED color in the automation.
+1. **Pause before the layer at Z = 1.8 mm** (the first layer over the pocket): drop an NTAG215 sticker into the hidden pocket, then resume.
+2. **Filament change before the layer at Z = 3.2 mm** (the first layer of the label): the ring-shaped label prints in a bright color. Match it to the LED color in the automation.
+
+These values assume 0.2 mm layers (`layer_h`). Double-check them in the slicer preview.
 
 Keep metal and magnets away from the PN532. The back speaker sits about 2 cm away, which is fine.
 
@@ -134,6 +145,7 @@ The automation already supports `playlist: "Name"` entries.
 ## Troubleshooting
 
 - **Tag not read**: check that the PN532 is in I2C mode and screwed onto all 4 standoffs. Try a bare sticker right on the board.
+- **Model looks wrong after changing parameters**: look for `!!! ОШИБКА` lines in the OpenSCAD console. The model checks that the slot unit, the PN532 board, the disc and the buttons still fit.
   If reading is weak, reduce `standoff_h` or `slot_clear`.
 - **No sound**: check 5 V on the MAX98357A and the LRC/BCLK/DIN order. Try playing something on `media_player.music_cube_player` from HA.
 - **Choppy audio**: weak Wi-Fi. Move the jukebox closer to the router and check the logs to confirm PSRAM is detected.
